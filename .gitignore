@@ -5,7 +5,7 @@ dump.mem
 a.out
 .vscode
 .DS_Store
-*.prg
+/*.prg
 *.lst
 *.hex
 *.o

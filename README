@@ -8,6 +8,19 @@ In BASIC:
   SYS 64007	    - resets the machine?
   POKE 63488,255    - powers off the CLCD?
 
+The bin/ directory within this repository:
 
+  clcd-rom.bin		Replace U104 or U105 with an EPROM with this content.
+			The CLCD should boot, and display an "lgb" title in
+			the SHELL menu, which can be selected. The result
+			should be similar to this one (online emulator):
+
+			http://commodore-lcd.lgb.hu/j/?test=yoda
+
+  loadable.prg		Should be LOADed from BASIC. Must be RUN then.
+
+  old-clcd-myrom.bin	It can be ignored, my old reference ROM, I lost
+			the source of, thus I should disassemble my
+			own program again ...
 
 

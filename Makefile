@@ -1,3 +1,4 @@
+ROMURL = http://commodore-lcd.lgb.hu/j/clcd-myrom.rom
 OLDROM = clcd-myrom.rom
 NEWROM = clcd-rom.bin
 XEMU_BIN = xemu-xclcd
@@ -12,7 +13,7 @@ loadable.prg: loadable.a65 Makefile $(OLDROM)
 	cl65 -t none -o $@ --ld-args -D__STACKSTART__=0xFFFF $<
 
 $(OLDROM):
-	wget -O $(OLDROM) http://commodore-lcd.lgb.hu/j/clcd-myrom.rom
+	wget -O $(OLDROM) $(ROMURL)
 
 xemu-rom:
 	$(MAKE) $(NEWROM)
@@ -36,5 +37,11 @@ distclean:
 	$(MAKE) clean
 	rm -f $(OLDROM)
 
-.PHONY: xemu-rom xemu-loadable compare clean distclean
+update:
+	$(MAKE) $(NEWROM) loadable.prg
+	mkdir -p bin
+	cp $(NEWROM) loadable.prg bin/
+	cp $(OLDROM) bin/old-clcd-myrom.bin
+
+.PHONY: xemu-rom xemu-loadable compare clean distclean update
 
