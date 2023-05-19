@@ -1,0 +1,13 @@
+Me, playing with the Commodore LCD, after I wrote the world's first working
+Commodore LCD emulator. ROM extractor expert ;) -> Mike Naberezny
+
+Things to try:
+
+In BASIC:
+
+  SYS 64007	    - resets the machine?
+  POKE 63488,255    - powers off the CLCD?
+
+
+
+

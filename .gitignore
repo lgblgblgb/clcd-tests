@@ -1,0 +1,13 @@
+.*.swp
+*~
+gmon.out
+dump.mem
+a.out
+.vscode
+.DS_Store
+*.prg
+*.lst
+*.hex
+*.o
+/clcd-myrom.rom
+/clcd-rom.bin
