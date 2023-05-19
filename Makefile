@@ -4,8 +4,13 @@ NEWROM = clcd-rom.bin
 KERROM = clcd-kernal.bin
 PRG = loadable.prg
 XEMU_BIN = xemu-xclcd
+D81 = disk.d81
 
 all:	$(NEWROM) $(KERROM) $(PRG)
+
+$(D81): $(PRG) Makefile
+	dd if=/dev/zero of=$@ bs=819200 count=1
+	echo "format disk,00\nwrite $< yoda\ndir" | c1541 $@
 
 $(NEWROM): rom.a65 Makefile $(OLDROM)
 	cl65 -t none -o $@ --ld-args -D__STACKSTART__=0xFFFF $<
@@ -43,16 +48,16 @@ compare:
 	diff -au $(OLDROM).hex $(NEWROM).hex
 
 clean:
-	rm -f $(PRG) $(NEWROM) $(KERROM) $(KERROM).16k *.o *.hex
+	rm -f $(PRG) $(NEWROM) $(KERROM) $(KERROM).16k $(D81) *.o *.hex
 
 distclean:
 	$(MAKE) clean
 	rm -f $(OLDROM)
 
 update:
-	$(MAKE) $(NEWROM) $(PRG)
+	$(MAKE) $(NEWROM) $(PRG) $(D81)
 	mkdir -p bin
-	cp $(NEWROM) $(KERROM) $(KERROM).16k $(PRG) bin/
+	cp $(NEWROM) $(KERROM) $(KERROM).16k $(PRG) $(D81) bin/
 	cp $(OLDROM) bin/old-clcd-myrom.bin
 
 .PHONY: xemu-rom xemu-loadable xemu-kernal compare clean distclean update

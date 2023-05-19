@@ -41,6 +41,9 @@ The bin/ directory within this repository:
 
   loadable.prg		Should be LOADed from BASIC. Must be RUN then.
 
+  disk.d81		3.5" D81 disk image, contains PRG files,
+			currently loadable.prg (as name 'yoda').
+
   old-clcd-myrom.bin	It can be ignored, my old reference ROM, I lost
 			the source of, thus I had to disassemble my
 			own program again ...
