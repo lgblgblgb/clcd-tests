@@ -1,15 +1,26 @@
-; Yes, this is a disassembled ROM, but that ROM was written by me,
-; though I've lost the source. So indeed, I had to disassemble my own
-; ROM.
-
-; da65 V2.18 - Ubuntu 2.18-1
-; Created:    2023-05-19 11:10:15
-; Input file: clcd-myrom.rom
-; Page:       1
-
+; -------------------------------------------------------------------------
+; Commmodore-LCD test programs
+; Copyright (C)2016-2023 Gábor Lénárt (LGB)
+;
+; Yes, this is based on a disassembled ROM (as you can notice from the
+; source), but that ROM was written by me too, though I've lost the source.
+; Thus I had to disassemble my own past work ...
+; -------------------------------------------------------------------------
+; This program is free software: you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation, either version 3 of the License, or
+; (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+; -------------------------------------------------------------------------
 
 RELOCATE_TO = $5000
-
 
         .setcpu "65C02"
 	.ORG $1001 - 2
@@ -62,58 +73,58 @@ RELOCATE_FROM = *
 ; ----------------------------------------------------------------------------
 ; Please see: http://commodore-lcd.lgb.hu/specification.html#display
 .PROC	app_main
-        lda     #$0A                            ; 4040 A9 0A                    ..
+        lda     #$0A
 	; FF82: LCD ctrl graph/alt
-        sta     $FF82                           ; 4042 8D 82 FF                 ...
+        sta     $FF82
 	; FF83: TEST/S40/CS80/CHRW
-        sta     $FF83                           ; 4045 8D 83 FF                 ...
-        lda     #$10                            ; 4048 A9 10                    ..
+        sta     $FF83
+        lda     #$10
 	; FF81: LCD ctrl YS7 ... YS0
-        sta     $FF81                           ; 404A 8D 81 FF                 ...
+        sta     $FF81
 	; FF80: LCD ctrl XS6 ... XS0
-        stz     $FF80                           ; 404D 9C 80 FF                 ...
-        jsr     init_yoda_screen_content        ; 4050 20 69 40                  i@
-        lda     #$00                            ; 4053 A9 00                    ..
-L4055:  ldx     #$10                            ; 4055 A2 10                    ..
-L4057:  stx     $FF81                           ; 4057 8E 81 FF                 ...
-        ldy     #$E0                            ; 405A A0 E0                    ..
-L405C:  inc     a                               ; 405C 1A                       .
-        bne     L405C                           ; 405D D0 FD                    ..
-        iny                                     ; 405F C8                       .
-        bne     L405C                           ; 4060 D0 FA                    ..
-        inx                                     ; 4062 E8                       .
-        cpx     #$40                            ; 4063 E0 40                    .@
-        bcc     L4057                           ; 4065 90 F0                    ..
-        bra     L4055                           ; 4067 80 EC                    ..
+        stz     $FF80
+        jsr     init_yoda_screen_content
+        lda     #$00
+L4055:  ldx     #$10
+L4057:  stx     $FF81
+        ldy     #$E0
+L405C:  inc     a
+        bne     L405C
+        iny
+        bne     L405C
+        inx
+        cpx     #$40
+        bcc     L4057
+        bra     L4055
 .ENDPROC
 
 
 .PROC	init_yoda_screen_content
-        lda     #$08                            ; 4069 A9 08                    ..
-        sta     $03                             ; 406B 85 03                    ..
-        lda     #$28                            ; 406D A9 28                    .(
-        sta     $05                             ; 406F 85 05                    ..
-        lda     #.LOBYTE(yoda_data)             ; 4071 A9 96                    ..
-        sta     $00                             ; 4073 85 00                    ..
-        lda     #.HIBYTE(yoda_data)             ; 4075 A9 40                    .@
-        sta     $01                             ; 4077 85 01                    ..
-        stz     $02                             ; 4079 64 02                    d.
-        stz     $04                             ; 407B 64 04                    d.
-	ldy     #$00                            ; 407D A0 00                    ..
-        ldx     #$1F                            ; 407F A2 1F                    ..
-loop:   lda     ($00),y                         ; 4081 B1 00                    ..
-        sta     ($02),y                         ; 4083 91 02                    ..
+        lda     #$08
+        sta     $03
+        lda     #$28
+        sta     $05
+        lda     #.LOBYTE(yoda_data)
+        sta     $00
+        lda     #.HIBYTE(yoda_data)
+        sta     $01
+        stz     $02
+        stz     $04
+        ldy     #$00
+        ldx     #$1F
+loop:   lda     ($00),y
+        sta     ($02),y
 	; the inverse version follows:
-        eor     #$FF                            ; 4085 49 FF                    I.
-        sta     ($04),y                         ; 4087 91 04                    ..
-        iny                                     ; 4089 C8                       .
-        bne     loop                            ; 408A D0 F5                    ..
-        inc     $01                             ; 408C E6 01                    ..
-        inc     $03                             ; 408E E6 03                    ..
-        inc     $05                             ; 4090 E6 05                    ..
-        dex                                     ; 4092 CA                       .
-        bpl     loop                            ; 4093 10 EC                    ..
-        rts                                     ; 4095 60                       `
+        eor     #$FF
+        sta     ($04),y
+        iny
+        bne     loop
+        inc     $01
+        inc     $03
+        inc     $05
+        dex
+        bpl     loop
+        rts
 .ENDPROC
 
 ; ----------------------------------------------------------------------------
@@ -121,11 +132,4 @@ loop:   lda     ($00),y                         ; 4081 B1 00                    
 ; DATA follows ;) Originally at $4096
 
 yoda_data:
-	;.INCBIN	"clcd-myrom.rom", $96, $2000
 	.INCBIN	"clcd-myrom.rom", $96, $2000
-
-;.REPEAT $8000+rom_start-*
-;.BYTE 0
-;.ENDREPEAT
-
-

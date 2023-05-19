@@ -2,9 +2,10 @@ ROMURL = http://commodore-lcd.lgb.hu/j/clcd-myrom.rom
 OLDROM = clcd-myrom.rom
 NEWROM = clcd-rom.bin
 KERROM = clcd-kernal.bin
+PRG = loadable.prg
 XEMU_BIN = xemu-xclcd
 
-all:	$(NEWROM) $(KERROM) loadable.prg
+all:	$(NEWROM) $(KERROM) $(PRG)
 
 $(NEWROM): rom.a65 Makefile $(OLDROM)
 	cl65 -t none -o $@ --ld-args -D__STACKSTART__=0xFFFF $<
@@ -16,7 +17,7 @@ $(KERROM): $(KERROM).16k Makefile
 	rm -f $@
 	cat $< $< > $@
 
-loadable.prg: loadable.a65 Makefile $(OLDROM)
+$(PRG): loadable.a65 Makefile $(OLDROM)
 	cl65 -t none -o $@ --ld-args -D__STACKSTART__=0xFFFF $<
 
 $(OLDROM):
@@ -27,8 +28,8 @@ xemu-rom:
 	$(XEMU_BIN) -rom105 $(NEWROM)
 
 xemu-loadable:
-	$(MAKE) loadable.prg
-	$(XEMU_BIN) -prg loadable.prg
+	$(MAKE) $(PRG)
+	$(XEMU_BIN) -prg $(PRG)
 
 xemu-kernal:
 	$(MAKE) $(KERROM)
@@ -42,16 +43,16 @@ compare:
 	diff -au $(OLDROM).hex $(NEWROM).hex
 
 clean:
-	rm -f loadable.prg $(NEWROM) $(KERROM) $(KERROM).16k *.o *.hex
+	rm -f $(PRG) $(NEWROM) $(KERROM) $(KERROM).16k *.o *.hex
 
 distclean:
 	$(MAKE) clean
 	rm -f $(OLDROM)
 
 update:
-	$(MAKE) $(NEWROM) loadable.prg
+	$(MAKE) $(NEWROM) $(PRG)
 	mkdir -p bin
-	cp $(NEWROM) $(KERROM) $(KERROM).16k loadable.prg bin/
+	cp $(NEWROM) $(KERROM) $(KERROM).16k $(PRG) bin/
 	cp $(OLDROM) bin/old-clcd-myrom.bin
 
 .PHONY: xemu-rom xemu-loadable xemu-kernal compare clean distclean update
