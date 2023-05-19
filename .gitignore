@@ -10,4 +10,6 @@ a.out
 *.hex
 *.o
 /clcd-myrom.rom
+/clcd-kernal.bin.16k
+/clcd-kernal.bin
 /clcd-rom.bin
