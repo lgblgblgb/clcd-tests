@@ -20,7 +20,7 @@ The bin/ directory within this repository:
   loadable.prg		Should be LOADed from BASIC. Must be RUN then.
 
   old-clcd-myrom.bin	It can be ignored, my old reference ROM, I lost
-			the source of, thus I should disassemble my
+			the source of, thus I had to disassemble my
 			own program again ...
 
 

@@ -31,7 +31,7 @@ compare:
 	diff -au $(OLDROM).hex $(NEWROM).hex
 
 clean:
-	rm -f loadable.prg $(NEWROM) *.o $(OLDROM).hex $(NEWROM).hex
+	rm -f loadable.prg $(NEWROM) *.o *.hex
 
 distclean:
 	$(MAKE) clean
