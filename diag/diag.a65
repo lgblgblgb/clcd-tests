@@ -1,0 +1,494 @@
+; -------------------------------------------------------------------------
+; Commmodore-LCD Diag-ROM (meant to replace U102 KERNAL ROM for testing)
+; Copyright (C)2023 Gábor Lénárt (LGB)
+; https://github.com/lgblgblgb/clcd-tests
+; http://commodore-lcd.lgb.hu/
+;
+; This ROM is meant to be put in the place of the Commodore LCD's KERNAL
+; ROM (U102 IC). Warning: during the tests, content of the memory backed
+; up RAM will be **LOST** (ie the "Virtual 1541" or "ramdrive").
+;
+; -------------------------------------------------------------------------
+; This program is free software: you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation, either version 3 of the License, or
+; (at your option) any later version.
+;
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+; -------------------------------------------------------------------------
+
+.SEGMENT "BSS"
+
+.SETCPU "65C02"
+
+; R/W I/O register ranges
+VIA1		= $F800
+VIA2		= $F880
+ACIA		= $F980
+; Dummy write I/O regs: the data does not count but the write event. Reading these ranges will back with the ROM content!
+MMU_KERN_MODE	= $FA00
+MMU_APPL_MODE	= $FA80
+MMU_RAM_MODE	= $FB00
+MMU_RECALL_MODE	= $FB80
+MMU_SAVE_MODE	= $FC00
+MMU_TEST_MODE	= $FC80
+; Write-only I/O registers, reading these ranges will back with the ROM content!
+MMU_APP_WINDOW1	= $FD00
+MMU_APP_WINDOW2	= $FD80
+MMU_APP_WINDOW3	= $FE00
+MMU_APP_WINDOW4 = $FE80
+MMU_KERN_WINDOW	= $FF00
+LCD		= $FF80
+
+
+ACIA_CONTROL_REGISTER_INIT_VALUE = 2	; No IRQ
+ACIA_COMMAND_REGISTER_INIT_VALUE = 0	; TODO
+
+
+
+.SEGMENT "FORBID"
+	.BYTE "This $200 byte ROM area is partially covered by I/O. "
+	.BYTE "To avoid possible problems to try to trick this (with "
+	.BYTE "mapping to kernal window for example), let's just not "
+	.BYTE "use it at all, for now."
+
+.SEGMENT "DATA"
+	; The DATA section can be only used after the initial tests, as not populted initially!
+footer:
+	.BYTE "LCD-DIAG (C)2023 LGB http://@",0
+
+.SEGMENT "LOROM"
+	; Any code in LOROM are out of reach during initial tests, and also _maybe_ later if
+	; certain MMU operations required to do do. Thus any essential routines must go into
+	; HIROM instead (which is very limited in size though!)
+
+.SEGMENT "HIROM"
+
+identity:
+	.REPEAT 256, i
+		.BYTE i
+	.ENDREP
+
+ascii2screencodes = * -32
+;	; 0 - 31, invalid
+;	.REPEAT 32
+;		.BYTE "?"
+;	.ENDREP
+	; SP ! " # $ % & ' ( ) * + , - . /   (32 - 47)
+	; 0 1 2 3 4 5 6 7 8 9 : ; < = > ?    (33 - 63)
+	.REPEAT 32, i
+		.BYTE 32 + i	; the same!
+	.ENDREP
+	; @ (64)
+	.BYTE	0
+	; A-Z (26 letters, 65-90) ... adding some extra stuff as well
+	.REPEAT 31, i
+		.BYTE i + 65
+	.ENDREP
+	.REPEAT 32, i
+		.BYTE i + 0
+	.ENDREP
+
+
+
+
+
+	; WARNING: during this memory testing phase, we can't use ANY RAM
+	; (no zero page, stack either) since we can't be sure about the
+	; usability of RAM. Also, other than testing the low RAM,
+	; we must run from ROM >= $FA00, since MMU must be not used at this
+	; point yet, and the rule, that even unitialized MMU must provide
+	; for low 4K RAM and upper 1.5K ROM all the time. Real CLCD does
+	; not even have RESET signal for MMU and must be initialized by
+	; software, _however_ because of the fixed lo-4K and up-1.5K,
+	; this scheme is OK.
+.SCOPE	reset_routine
+bad_rom:
+	LDX	#first_stage_error_rom
+	JMP	first_stage_error_and_halt
+START:
+	SEI
+	CLD
+	; Set VIA for power-on signal
+	LDA	#$04
+	TSB	VIA1+2	; VIA1 DDR-B
+	TRB	VIA1+0	; VIA1 PORT-B
+	; Set VIA for some sound during the low-mem memory test.
+		; TODO!
+	; Set LCD controller (to address $800 and text mode)
+	STZ	LCD+0
+	LDA	#$10
+	STA	LCD+1
+	LDA	#$08
+	STA	LCD+2
+	STA	LCD+3
+	; MMU is set to testing mode by will, thus we will certainly
+	; fail, if not fixed areas (low 4K, upper 1.5K) is accessed for whatever reason.
+	; TODO FIXME
+	STA	MMU_TEST_MODE
+	; ACIA
+	LDA	#ACIA_COMMAND_REGISTER_INIT_VALUE
+	STA	ACIA+2	; command register
+	LDA	#ACIA_CONTROL_REGISTER_INIT_VALUE
+	STA	ACIA+3	; control register
+	LDA	ACIA+1	; read status reg (just in case, if pending IRQ, etc ...)
+	LDA	#'*'
+	STA	ACIA	; write a '*' to the serial port
+	; We don't want to do some advanced CRC here (yet?) as we would need some RAM for that probably
+	; However, we can do a simple checksumming on the $FA00-$FFFF area using a single byte checksum
+	; yes, no CLC in the loop!
+	LDY	#0
+	TYA
+	CLC
+:	ADC	$FA00,Y
+	ADC	$FB00,Y
+	ADC	$FC00,Y
+	ADC	$FD00,Y
+	ADC	$FE00,Y
+	ADC	$FF00,Y
+	INY
+	BNE	:-
+	CMP	#0
+	BNE	bad_rom
+	; Check the ROM itself with trying to read the "identity_table", just in case, if it's not corrupted
+:	TYA
+	CMP	identity,Y
+	BNE	bad_rom
+	INY
+	BNE	:-
+	LDX	#0
+	; Fill mem
+:	TXA
+	CLC
+	ADC	identity,Y
+	.REPEAT 15,i
+	STA	i*$100,X
+	INC	A
+	.ENDREP
+	STA	$F00,X
+	INX
+	BNE	:-
+	; Check mem
+:	TXA
+	CLC
+	ADC	identity,Y
+	.REPEAT	15,i
+	CMP	i*$100,X
+	BNE	bad_loram
+	INC	A
+	.ENDREP
+	CMP	$F00,X
+	BNE	bad_loram
+	INX
+	BNE	:-
+	INY
+	BEQ	end_loram_test
+	LDA	#'.'
+	STA	ACIA
+	JMP	:--
+
+bad_loram:
+	LDX	#first_stage_error_loram
+	JMP	first_stage_error_and_halt
+bad_stack:
+	LDX	#first_stage_error_stack
+	JMP	first_stage_error_and_halt
+bad_kernmode_loram_mmu:
+	LDX	#first_stage_error_kernmode_loram_mmu
+	JMP	first_stage_error_and_halt
+bad_kernmode_hirom_mmu:
+	LDX	#first_stage_error_kernmode_hirom_mmu
+	JMP	first_stage_error_and_halt
+bad_rom2:
+	LDX	#first_stage_error_lorom
+	JMP	first_stage_error_and_halt
+
+end_loram_test:
+	; Setup stack
+	LDX	#$FF
+	TXS
+	; Test stack just in case ...
+:	PHX
+	STZ	$0FF	; some LIGHT tries to mess up off-by-one-page areas, should NOT affect the stack
+	STZ	$2FF
+	STZ	$0FE
+	STZ	$2FE
+	PLA
+	CMP	identity,X
+	BNE	bad_stack
+	DEX
+	BNE	:-
+	; Set MMU mode to "KERNAL" mode
+	STA	MMU_KERN_MODE
+	; Test MMU for accessing the low RAM and the high-rom via the kernal window
+:	LDA	#$F0
+	STA	MMU_KERN_WINDOW	; set kernal window to zero (but we must take account that window is at $4000!)
+	LDA	0,X
+	CMP	$4000,X
+	BNE	bad_kernmode_loram_mmu
+	LDA	$4000,X
+	CMP	0,X
+	BNE	bad_kernmode_loram_mmu
+	LDA	#$EF
+	STA	MMU_KERN_WINDOW	; set kernal window to the last kilobyte of the ROM
+	LDA	$FC00,X
+	CMP	$4000,X
+	BNE	bad_kernmode_hirom_mmu
+	LDA	$4000,X
+	CMP	$FC00,X
+	BNE	bad_kernmode_hirom_mmu
+	INX
+	BNE	:-
+	; Compare ROM ids
+	LDX	#id_size
+:	LDA	lo_id-1,X
+	CMP	hi_id-1,X
+	BNE	bad_rom2
+	DEX
+	BNE	:-
+	; Transfer the (initialized) DATA area from ROM to RAM
+	.IMPORT	__DATA_LOAD__
+	.IMPORT __DATA_RUN__
+:	LDA	__DATA_LOAD__,X
+	STA	__DATA_RUN__,X
+	LDA	__DATA_LOAD__+$100,X
+	STA	__DATA_RUN__+$100,X
+	; meanwhile, let's use the opportunity to clear some other areas
+	STZ	$400,X
+	STZ	$500,X
+	STZ	$600,X
+	STZ	$700,X
+	STZ	$000,X		; also clear the zero page
+	STZ	$100,X		; ... and stack page as well
+	LDA	#32		; also, to clear the screen ;)
+	STA	$800,X
+	STA	$900,X
+	STA	$A00,X
+	STA	$B00,X
+	STA	$C00,X
+	STA	$D00,X
+	STA	$E00,X
+	STA	$F00,X
+	INX
+	BNE	:-
+
+
+	; Copy the head and footer
+	LDX	#0
+:	LDY	footer,X
+	BEQ	ENDE
+	LDA	ascii2screencodes,Y
+	STA	15*128 + $800,X
+	INX
+	BRA	:-
+
+
+ENDE:
+
+
+	; TEST only:
+	; Dump charset
+	LDX	#0
+:	CLC
+	TXA
+	STA	$900,X
+	ADC	#80
+	STA	$980,X
+	ADC	#80
+	STA	$A00,X
+	INX
+	BPL	:-
+
+
+
+
+
+
+TODO:
+	INC	$800
+	BRA	TODO
+.ENDSCOPE
+
+
+; Input: X=error msg offset compared to label "first_stage_errors"
+.PROC	first_stage_error_and_halt
+	; Clear some screen space. Be sure, X is not clobbered at this point
+	LDY	#0
+	LDA	#32
+cl:	STA	$800,Y
+	STA	$900,Y
+	INY
+	BNE	cl
+pl:	LDA	first_stage_errors,X
+	BEQ	hlt
+	TAY
+	LDA	ascii2screencodes,Y
+	STA	$800,X	; Yeah, should be aligned to the start of the screen (X is error table offset). But we need Y later in the ACIA timing loop
+	ORA	#$80
+	STA	$900,X	; Also print in inverse (?)
+	; Wait. Mainly because of the ACIA
+	LDA	#10
+	LDY	#0
+wt:	INY
+	BNE	wt
+	DEA
+	BNE	wt
+	; Write character to ACIA tx reg, too
+	LDA	first_stage_errors,X
+	STA	ACIA
+	INX
+	BRA	pl
+hlt:
+	BRA	hlt
+.ENDPROC
+
+; The table must not exceed 256 bytes.
+; The reason for this madness: we must handle this
+; without the possibility to use ANY RAM, let it be
+; zero page, stack, or anything ...
+first_stage_errors:
+	first_stage_error_loram = * - first_stage_errors
+		.BYTE	"?LORAM,HALT.",0
+	first_stage_error_lorom = * - first_stage_errors
+		.BYTE	"?LOROM,HALT.",0
+	first_stage_error_rom = * - first_stage_errors
+		.BYTE	"?HIROM,HALT.",0
+	first_stage_error_stack = * - first_stage_errors
+		.BYTE	"?STACK,HALT.",0
+	first_stage_error_kernmode_hirom_mmu = * - first_stage_errors
+		.BYTE	"?HIROMVIAMMMU,HALT.",0
+	first_stage_error_kernmode_loram_mmu = * - first_stage_errors
+		.BYTE	"?LORAMVIAMMU,HALT.",0
+	first_stage_error_nmi = * - first_stage_errors
+		.BYTE	"Got NMI!",0
+.ASSERT	* - first_stage_errors < $100, error, "first_stage_errors table is too big"
+
+
+; These routines uses RAM and/or stack already
+
+
+
+.IF 0
+.PROC	char_write
+	PHA
+	PHX
+	TAX
+	LDA	ascii2screencodes,X
+	ORA	char_write_rev_mask
+	STA	(char_write_addr)
+	; On CLCD a text mode line is 128 bytes long, thus always within a page boundary.
+	; This routine does not support text wrapping, so it's OK to deal with the low byte of the address only.
+	INC	char_write_addr
+	PLX
+	PLA
+	; fall-though to serial_write!!
+.ENDPROC
+.PROC	serial_write
+	; Wait loop first (so we need to back-up used registers as well.
+	PHX
+	PHY
+	LDX	#0
+	LDY	#0
+:	INY
+	BNE	:-
+	DEX
+	BNE	:-
+	STA	ACIA	; send character
+	PLY
+	PLX
+	RTS
+.ENDPROC
+; Input: (char_read_addr) = address of zero terminated string, string cannot be longer (with the terminator) than 256 bytes
+; Returns: A = length of the string (not including the terminator)
+.PROC	string_write
+	PHX
+	LDX	#0
+@loop:
+	LDA	(char_read_addr),X
+	BEQ	@end_of_string
+	BMI	@ctrl
+	INX
+	JSR	char_write
+	BRA	@loop
+@end_of_string:
+	TXA
+	PLX
+	RTS
+@ctrl:
+	INX
+	CMP	#$80
+	BEQ	@ctrl_revs_on
+	CMP	#$81
+	BEQ	@ctrl_revs_off
+	CMP	#$82
+	BEQ	@ctrl_goto_pos
+	BRA	@loop
+@ctrl_revs_on:
+	STA	char_write_rev_mask	; command was already $80, exactly what we need here
+	BRA	@loop
+@ctrl_revs_off:
+	STZ	char_write_rev_mask
+	BRA	@loop
+@ctrl_goto_pos:
+	LDA	(char_read_addr),X
+	INX
+	STA	char_write_addr
+	LDA	(char_read_addr),X
+	INX
+	STA	char_write_addr+1
+	LDA	#13			; write CRLF to serial port
+	JSR	serial_write
+	LDA	#10
+	JSR	serial_write
+	BRA	@loop
+.ENDPROC
+.PROC	string_write_inline
+	JSR	string_write
+.ENDPROC
+.ENDIF
+
+
+
+
+.SEGMENT "CHK"
+	.ASSERT	* = $FFF9, error, "HI-ROM CHK-SUM byte is at incorrect address"
+	.BYTE	0	; must be zero, will be patched later!
+
+.SEGMENT "VEC"
+	.ASSERT	* = $FFFA, error, "CPU hardware vectors are at incorrect address"
+	.WORD	nmi_entry
+	.WORD	reset_routine::START
+	.WORD	irq_entry
+
+.SEGMENT "HIROM"
+
+
+; We don't expect any NMI, thus ...
+.PROC	nmi_entry
+	SEI
+	LDX	#first_stage_error_nmi
+	JMP	first_stage_error_and_halt
+.ENDPROC
+
+
+
+irq_entry:
+	RTI
+
+
+; These two IDs must be the same value!
+.SEGMENT "LOROM"
+	lo_id: .BYTE "ROM$chk$CMP"
+	id_size = * - lo_id
+.SEGMENT "HIROM"
+	hi_id: .BYTE "ROM$chk$CMP"
+
+
+.SEGMENT "LOROM"
+main:
